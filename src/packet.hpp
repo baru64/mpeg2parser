@@ -4,7 +4,7 @@
 #include <string.h>
 using namespace std;
 
-class Packet {
+class TS_Packet {
     public:
         uint8_t sync_byte;
         bool error_ind;
@@ -15,6 +15,6 @@ class Packet {
         uint8_t afc;
         uint8_t cc;
         uint8_t content[184];
-        Packet(char* bytes);
+        TS_Packet(char* bytes);
         void desc();
 };

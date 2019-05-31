@@ -1,9 +1,9 @@
-#include "packet.h"
+#include "packet.hpp"
 
 
 /* MPEG-2 TS
 */
-Packet :: Packet (char* bytes) {
+TS_Packet :: TS_Packet (char* bytes) {
     // uint32_t header = (bytes[0] << 24) + (bytes[1] << 16) +  (bytes[2] << 8) + bytes[3];
     uint32_t header = __builtin_bswap32(*((uint32_t*) bytes));
     sync_byte = header >> 24;
@@ -17,7 +17,7 @@ Packet :: Packet (char* bytes) {
     memcpy(content, &bytes[4], 184);
 }
 
-void Packet :: desc () {
+void TS_Packet :: desc () {
     cout << "sync: " << sync_byte << " | ";
     cout << "PID: " << pid << " | ";
     cout << "CC: " << (int) cc << "\t| ";

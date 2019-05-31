@@ -3,7 +3,10 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-#include "packet.h"
+
+#include "packet.hpp"
+#include "pesparser.hpp"
+
 using namespace std;
 
 int arrFindInt(int* arr, int x, int len)
@@ -63,48 +66,25 @@ int main(int argc, char* argv[]) {
     bool start_writing = false;
     char buffer[BUFFER_LEN];
     char* cpy_ptr = buffer;
+    PES_Parser* parser = new PES_Parser();
+
     while(input_fs.read(packet_buff, PACKET_SIZE)) {
         if (input_fs.gcount() < 188) {
             cout << "Read less than 188 bytes, exiting." << endl;
             break;
         }
-        Packet *packet = new Packet(packet_buff);
+        TS_Packet *packet = new TS_Packet(packet_buff);
         if (packet->pid == pid_to_extract && i < 1000) {
             packet->desc();
             cout << "num: " << i++ << endl;
         }
-        
+        parser->next_packet(packet);
+
         if (packet->pid == pid_to_extract) {
-            if (packet->payload_struct_ind == 1) {
-                cout    << "BUFOR: "
-                        << (int) buffer[0] << " | "
-                        << (int) buffer[1] << " | "
-                        << (int) buffer[2] << " | "
-                        << (int) ((uint16_t)buffer[3]) << " | "
-                        << (int) ((uint16_t)buffer[4]) << " | "
-                        << (int) ((uint16_t)buffer[5]) << " | "
-                        << endl;
-                if (start_writing) {
-                    cout << "writing!" << endl;
-                    uint16_t len = __builtin_bswap16(*((uint16_t*) &buffer[4]));
-                    output_fs.write(buffer, len);
-                } else start_writing = true;
-                offset = 0;
-                if (packet->afc != 1)
-                    offset += 1 + ((int) packet->content[0]);
-                cpy_ptr = &buffer[0];
-                memcpy(cpy_ptr, &(packet->content[offset]), PACKET_SIZE - offset);
-            } else {
-                offset = 4;
-                if (packet->afc == 1) {
-                    memcpy(cpy_ptr, packet->content, PACKET_SIZE - offset);
-                } else {
-                    offset += 1 + ((int) packet->content[0]);
-                    memcpy(cpy_ptr, &packet->content[offset - 4], PACKET_SIZE - offset);
-                }
-            }
-            cpy_ptr += PACKET_SIZE - offset;
+            parser->next_packet(packet);
         }
+
+        if (parser->ready()) parser->desc();
 
         if (arrFindInt(pids, packet->pid, MAX_PIDS) == -1) {
             arrAppendInt(pids, packet->pid, MAX_PIDS);

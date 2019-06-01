@@ -4,6 +4,9 @@
 #include <string.h>
 using namespace std;
 
+#ifndef PACKET_HPP
+#define PACKET_HPP
+
 class TS_Packet {
     public:
         uint8_t sync_byte;
@@ -18,3 +21,5 @@ class TS_Packet {
         TS_Packet(char* bytes);
         void desc();
 };
+
+#endif

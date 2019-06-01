@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include <cstdlib>
 
 #include "packet.hpp"
 #include "pesparser.hpp"
@@ -40,6 +41,7 @@ int main(int argc, char* argv[]) {
 
     if (argc < 4) {
         cout << "Usage: mpeg2parser OUTPUT_FILE INPUT_FILE PID_TO_EXTRACT" << endl;
+        return EXIT_FAILURE;
     } else {
         strcpy(output_file, argv[1]);
         strcpy(input_file, argv[2]);
@@ -61,30 +63,22 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    int i = 0;
-    int offset;
-    bool start_writing = false;
-    char buffer[BUFFER_LEN];
-    char* cpy_ptr = buffer;
-    PES_Parser* parser = new PES_Parser();
-
+//    int i = 0;
+    PES_Parser* parser = new PES_Parser(&output_fs, true);
     while(input_fs.read(packet_buff, PACKET_SIZE)) {
         if (input_fs.gcount() < 188) {
             cout << "Read less than 188 bytes, exiting." << endl;
             break;
         }
         TS_Packet *packet = new TS_Packet(packet_buff);
-        if (packet->pid == pid_to_extract && i < 1000) {
-            packet->desc();
-            cout << "num: " << i++ << endl;
-        }
-        parser->next_packet(packet);
+//        if (packet->pid == pid_to_extract && i < 1000) {
+//            packet->desc();
+//            cout << "num: " << i++ << endl;
+//        }
 
         if (packet->pid == pid_to_extract) {
             parser->next_packet(packet);
         }
-
-        if (parser->ready()) parser->desc();
 
         if (arrFindInt(pids, packet->pid, MAX_PIDS) == -1) {
             arrAppendInt(pids, packet->pid, MAX_PIDS);
@@ -101,5 +95,5 @@ int main(int argc, char* argv[]) {
     for(int i = 0; i < MAX_PIDS; i++)
         if(pids[i] != 0) cout << pids[i] << " ";
     cout << endl;
-    return 0;
+    return EXIT_SUCCESS;
 }

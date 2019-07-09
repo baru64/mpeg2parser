@@ -8,6 +8,32 @@ PES_Parser::PES_Parser(fstream* fs, bool enable_desc) {
     printinfo = enable_desc;
     header_len = 0;
     output_fs = fs;
+    outc = 0;
+
+	// write header
+    memset(&hdr, 0, sizeof hdr);
+    memcpy(hdr.riff_mark, "RIFF", 4);
+    memcpy(hdr.file_type, "WAVE", 4);
+    memcpy(hdr.format_marker, "fmt ", 4);
+    memcpy(hdr.data_marker, "data", 4);
+    hdr.format_len = 16U; // length of format data
+    hdr.format_type = 1; // 1 - PCM
+
+	output_fs->write((char*) &hdr, sizeof hdr);	
+
+    // mpg123 init
+    mpg123_init();
+    m = mpg123_new(NULL, &ret);
+    if (m == NULL)
+    {
+        fprintf(stderr,"Unable to create mpg123 handle: %s\n",
+                mpg123_plain_strerror(ret));
+        exit(EXIT_FAILURE);
+    }
+    mpg123_param(m, MPG123_VERBOSE, 2, 0);
+
+    mpg123_open_feed(m);
+    if (m == NULL) exit(EXIT_FAILURE);
 }
 
 void PES_Parser::next_packet(TS_Packet* ts_packet) {
@@ -58,6 +84,59 @@ bool PES_Parser::append_file() {
         cout << "Error file not good!" << endl;
         return false;
     }
-    output_fs->write(&buffer[6+3+header_len], (len+6)-(6+3+header_len));
+
+    size_t size;
+    ret = mpg123_decode(m, (unsigned char*) &buffer[6+3+header_len],
+                        (len+6)-(6+3+header_len), out, OUTBUFF, &size);
+    if(ret == MPG123_NEW_FORMAT) {
+        long rate;
+        int channels, enc;
+
+        mpg123_getformat(m, &rate, &channels, &enc);
+        fprintf(stderr, "New format: %li Hz, %i channels, encoding value %i\n",
+                rate, channels, enc);
+
+        hdr.channels = (uint16_t) channels;
+        hdr.sample_rate = (uint32_t) rate;
+        if (enc & MPG123_ENC_8) hdr.bits_per_sample = 8U;
+        else if (enc & MPG123_ENC_16) hdr.bits_per_sample = 16U;
+        else if (enc & MPG123_ENC_24) hdr.bits_per_sample = 24U;
+        else if (enc & MPG123_ENC_32) hdr.bits_per_sample = 32U;
+        hdr.srxbpsxch = (hdr.sample_rate * hdr.bits_per_sample
+                        * hdr.channels) / 8;
+        hdr.bpsxch = (hdr.bits_per_sample * hdr.channels) / 8;
+
+        //print_wav_header(&hdr);
+        overwrite_wav_header(output_fs, &hdr);
+    }
+	output_fs->write((char*) out, size);
+    outc += size;
+    while (ret != MPG123_ERR && ret != MPG123_NEED_MORE) {
+    // Get all decoded audio that is available now before feeding more input
+        ret = mpg123_decode(m,NULL,0,out,OUTBUFF,&size);
+	    output_fs->write((char*) out, size);
+        outc += size;
+    }
+    if (ret == MPG123_ERR) {
+        fprintf(stderr, "MPG123 ERROR: %s", mpg123_strerror(m)); return false;
+    }
+
+    return true;
+}
+
+bool PES_Parser::close_fs(char* filename) {
+    struct stat file_info;
+    int err;
+    err = stat(filename, &file_info);
+    if (err == -1) {
+        fprintf(stderr,"Stat error");
+        output_fs->close();
+        return false;
+    }
+    hdr.file_size = ((uint32_t) file_info.st_size ) - 8;
+    hdr.data_size = (uint32_t) outc;
+    print_wav_header(&hdr);
+    overwrite_wav_header(output_fs, &hdr);
+    output_fs->close();
     return true;
 }

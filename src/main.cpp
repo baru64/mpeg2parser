@@ -63,18 +63,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // int i = 0;
-    PES_Parser* parser = new PES_Parser(&output_fs, true);
+    PES_Parser* parser = new PES_Parser(&output_fs, false);
     while(input_fs.read(packet_buff, PACKET_SIZE)) {
         if (input_fs.gcount() < 188) {
             cout << "Read less than 188 bytes, exiting." << endl;
             break;
         }
         TS_Packet *packet = new TS_Packet(packet_buff);
-        // if (packet->pid == pid_to_extract && i < 1000) {
-        //     packet->desc();
-        //     cout << "num: " << i++ << endl;
-        // }
 
         if (packet->pid == pid_to_extract) {
             parser->next_packet(packet);
@@ -90,7 +85,7 @@ int main(int argc, char* argv[]) {
         }
     }
     input_fs.close();
-    output_fs.close();
+    parser->close_fs(output_file);
     cout << "\n all pids: ";
     for(int i = 0; i < MAX_PIDS; i++)
         if(pids[i] != 0) cout << pids[i] << " ";
